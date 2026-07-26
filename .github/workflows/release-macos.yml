@@ -23,10 +23,10 @@ jobs:
       - name: Extract macOS source kit
         run: |
           mkdir build
-          unzip -q macos-kit-1.1.1.zip -d build
+          unzip -q macos-kit-1.1.2.zip -d build
 
       - name: Configure update service
-        working-directory: build/macos-kit-1.1.1
+        working-directory: build/macos-kit-1.1.2
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -41,7 +41,7 @@ jobs:
           PY
 
       - name: Build and test macOS application
-        working-directory: build/macos-kit-1.1.1
+        working-directory: build/macos-kit-1.1.2
         run: |
           chmod +x build_macos_user.sh
           ./build_macos_user.sh
@@ -49,19 +49,19 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir release-assets
-          cp "build/macos-kit-1.1.1/release_packages/macos_user_install/v1.1.1/PersonalNightShiftWorkingHoursRecord-macOS-1.1.1.zip" release-assets/
-          cp "build/macos-kit-1.1.1/release_packages/macos_user_install/v1.1.1/PersonalNightShiftWorkingHoursRecord-macOS-1.1.1.dmg" release-assets/
-          cp "build/macos-kit-1.1.1/release_packages/macos_user_install/v1.1.1/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.1.pkg" release-assets/
+          cp "build/macos-kit-1.1.2/release_packages/macos_user_install/v1.1.2/PersonalNightShiftWorkingHoursRecord-macOS-1.1.2.zip" release-assets/
+          cp "build/macos-kit-1.1.2/release_packages/macos_user_install/v1.1.2/PersonalNightShiftWorkingHoursRecord-macOS-1.1.2.dmg" release-assets/
+          cp "build/macos-kit-1.1.2/release_packages/macos_user_install/v1.1.2/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.2.pkg" release-assets/
           python3 - <<'PY'
           import hashlib
           import json
           from pathlib import Path
 
-          asset = Path("release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.1.zip")
+          asset = Path("release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.2.zip")
           sha256 = hashlib.sha256(asset.read_bytes()).hexdigest()
-          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.1"
+          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.2"
           manifest = {
-              "latest_version": "1.1.1",
+              "latest_version": "1.1.2",
               "download_url": f"{base}/{asset.name}",
               "downloads": {
                   "macos": {
@@ -69,7 +69,7 @@ jobs:
                       "sha256": sha256,
                   }
               },
-              "release_notes": "macOS-native icon support and a first-install package that creates a desktop shortcut automatically.",
+              "release_notes": "Responsive 13-inch MacBook layout and reliable keyboard arrow navigation across timesheet rows and controls.",
           }
           Path("release-assets/update.json").write_text(
               json.dumps(manifest, indent=2) + "\n",
@@ -81,10 +81,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.1.1 \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.1.pkg \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.1.zip \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.1.dmg \
+          gh release create v1.1.2 \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.2.pkg \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.2.zip \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.2.dmg \
             release-assets/update.json \
-            --title "Personal Night-Shift Working Hours Record v1.1.1" \
-            --notes "macOS icon compatibility update. For automatic installation into Applications plus a desktop shortcut, download the PKG installer. This build is unsigned; macOS may require approval in Privacy & Security on first installation."
+            --title "Personal Night-Shift Working Hours Record v1.1.2" \
+            --notes "Responsive 13-inch MacBook layout with readable labels and improved keyboard navigation. For automatic installation into Applications plus a desktop shortcut, download the PKG installer. This build is unsigned; macOS may require approval in Privacy & Security on first installation."
