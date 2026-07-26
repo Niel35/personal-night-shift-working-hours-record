@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - macos-kit-1.1.10.zip
-      - .github/workflows/release-all.yml
+      - .github/workflows/release-macos.yml
 
 permissions:
   contents: write
