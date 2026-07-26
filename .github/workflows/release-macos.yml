@@ -1,0 +1,83 @@
+name: Build and release macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+
+      - name: Extract macOS source kit
+        run: |
+          mkdir build
+          unzip -q macos-kit-1.1.0.zip -d build
+
+      - name: Configure update service
+        working-directory: build/macos-kit-1.1.0
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/app_info.py")
+          text = path.read_text(encoding="utf-8")
+          old = 'UPDATE_MANIFEST_URL = ""'
+          new = 'UPDATE_MANIFEST_URL = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/latest/download/update.json"'
+          if old not in text:
+              raise SystemExit("UPDATE_MANIFEST_URL placeholder was not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Build and test macOS application
+        working-directory: build/macos-kit-1.1.0
+        run: |
+          chmod +x build_macos_user.sh
+          ./build_macos_user.sh
+
+      - name: Prepare release files
+        run: |
+          mkdir release-assets
+          cp "build/macos-kit-1.1.0/release_packages/macos_user_install/v1.1.0/PersonalNightShiftWorkingHoursRecord-macOS-1.1.0.zip" release-assets/
+          cp "build/macos-kit-1.1.0/release_packages/macos_user_install/v1.1.0/PersonalNightShiftWorkingHoursRecord-macOS-1.1.0.dmg" release-assets/
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          asset = Path("release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.0.zip")
+          sha256 = hashlib.sha256(asset.read_bytes()).hexdigest()
+          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.0"
+          manifest = {
+              "latest_version": "1.1.0",
+              "download_url": f"{base}/{asset.name}",
+              "downloads": {
+                  "macos": {
+                      "download_url": f"{base}/{asset.name}",
+                      "sha256": sha256,
+                  }
+              },
+              "release_notes": "Initial macOS release with automatic GitHub update support.",
+          }
+          Path("release-assets/update.json").write_text(
+              json.dumps(manifest, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v1.1.0 \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.0.zip \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.0.dmg \
+            release-assets/update.json \
+            --title "Personal Night-Shift Working Hours Record v1.1.0" \
+            --notes "Initial macOS user release. This build is unsigned; on first launch, right-click the app and choose Open."
