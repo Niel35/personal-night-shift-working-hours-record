@@ -134,7 +134,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.1.10 \
+          gh release create v1.1.10 --repo Niel35/personal-night-shift-working-hours-record \
             release-assets/PersonalNightShiftWorkingHoursRecord-Windows-1.1.10.zip \
             release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.10.pkg \
             release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.10.zip \
