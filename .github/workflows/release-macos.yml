@@ -1,4 +1,4 @@
-name: Build and release macOS
+name: Build and release Windows and macOS
 
 on:
   workflow_dispatch:
@@ -6,87 +6,139 @@ on:
     branches:
       - main
     paths:
-      - macos-kit-1.1.7.zip
-      - .github/workflows/release-macos.yml
+      - macos-kit-1.1.10.zip
+      - .github/workflows/release-all.yml
 
 permissions:
   contents: write
 
 jobs:
-  build-macos:
-    runs-on: macos-latest
+  build-windows:
+    runs-on: windows-latest
     timeout-minutes: 45
-
     steps:
-      - name: Check out release source
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Extract source kit
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build | Out-Null
+          Expand-Archive macos-kit-1.1.10.zip -DestinationPath build
+      - name: Test and build Windows app
+        working-directory: build/macos-kit-1.1.10
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m compileall app calculations database exports backup tests sample_data
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m pytest
+          python -m PyInstaller night_shift_salary_recorder.spec --clean --noconfirm
+          Compress-Archive -Path dist/PersonalNightShiftWorkingHoursRecord `
+            -DestinationPath PersonalNightShiftWorkingHoursRecord-Windows-1.1.10.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: build/macos-kit-1.1.10/PersonalNightShiftWorkingHoursRecord-Windows-1.1.10.zip
+          if-no-files-found: error
 
-      - name: Extract macOS source kit
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Extract source kit
         run: |
           mkdir build
-          unzip -q macos-kit-1.1.7.zip -d build
-
-      - name: Verify embedded update service
-        working-directory: build/macos-kit-1.1.7
-        run: |
-          python3 - <<'PY'
-          from app.app_info import APP_VERSION, UPDATE_MANIFEST_URL
-
-          assert APP_VERSION == "1.1.7"
-          assert UPDATE_MANIFEST_URL == "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/latest/download/update.json"
-          print(APP_VERSION, UPDATE_MANIFEST_URL)
-          PY
-
-      - name: Build and test native Apple Silicon application
-        working-directory: build/macos-kit-1.1.7
+          unzip -q macos-kit-1.1.10.zip -d build
+      - name: Test and build native Apple Silicon app
+        working-directory: build/macos-kit-1.1.10
         run: |
           chmod +x build_macos_user.sh
           ./build_macos_user.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            build/macos-kit-1.1.10/release_packages/macos_user_install/v1.1.10/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.10.pkg
+            build/macos-kit-1.1.10/release_packages/macos_user_install/v1.1.10/PersonalNightShiftWorkingHoursRecord-macOS-1.1.10.zip
+            build/macos-kit-1.1.10/release_packages/macos_user_install/v1.1.10/PersonalNightShiftWorkingHoursRecord-macOS-1.1.10.dmg
+          if-no-files-found: error
 
-      - name: Prepare release files
+  publish:
+    needs:
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-release"
+          path: release-assets
+          merge-multiple: true
+      - name: Create secure platform manifest
         run: |
-          mkdir release-assets
-          cp "build/macos-kit-1.1.7/release_packages/macos_user_install/v1.1.7/PersonalNightShiftWorkingHoursRecord-macOS-1.1.7.zip" release-assets/
-          cp "build/macos-kit-1.1.7/release_packages/macos_user_install/v1.1.7/PersonalNightShiftWorkingHoursRecord-macOS-1.1.7.dmg" release-assets/
-          cp "build/macos-kit-1.1.7/release_packages/macos_user_install/v1.1.7/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.7.pkg" release-assets/
           python3 - <<'PY'
           import hashlib
           import json
+          from datetime import date
           from pathlib import Path
 
-          asset = Path("release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.7.zip")
-          sha256 = hashlib.sha256(asset.read_bytes()).hexdigest()
-          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.7"
+          root = Path("release-assets")
+          windows = root / "PersonalNightShiftWorkingHoursRecord-Windows-1.1.10.zip"
+          macos = root / "PersonalNightShiftWorkingHoursRecord-macOS-1.1.10.zip"
+          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.10"
+
+          def sha256(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as file:
+                  for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
           manifest = {
-              "latest_version": "1.1.7",
-              "download_url": f"{base}/{asset.name}",
+              "latest_version": "1.1.10",
+              "download_url": f"{base}/{windows.name}",
+              "sha256": sha256(windows),
+              "published_at": date.today().isoformat(),
+              "mandatory": False,
               "downloads": {
+                  "windows": {
+                      "download_url": f"{base}/{windows.name}",
+                      "sha256": sha256(windows),
+                      "filename": windows.name,
+                  },
                   "macos": {
-                      "download_url": f"{base}/{asset.name}",
-                      "sha256": sha256,
-                  }
+                      "download_url": f"{base}/{macos.name}",
+                      "sha256": sha256(macos),
+                      "filename": macos.name,
+                  },
               },
-              "release_notes": "Fixes compressed and clipped table text on compact MacBook screens with readable column widths, smooth horizontal scrolling, and synchronized headers.",
+              "release_notes": (
+                  "Connects every Windows and macOS installation directly to GitHub Releases. "
+                  "The app now shows New Update on both platforms and automatically selects, "
+                  "verifies, installs, and reopens the correct platform package."
+              ),
           }
-          Path("release-assets/update.json").write_text(
+          (root / "update.json").write_text(
               json.dumps(manifest, indent=2) + "\n",
               encoding="utf-8",
           )
           PY
-
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.1.7 \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.7.pkg \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.7.zip \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.7.dmg \
+          gh release create v1.1.10 \
+            release-assets/PersonalNightShiftWorkingHoursRecord-Windows-1.1.10.zip \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.10.pkg \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.10.zip \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.10.dmg \
             release-assets/update.json \
-            --title "Personal Night-Shift Working Hours Record v1.1.7" \
-            --notes "Fixes the compressed table on 13-inch and 14-inch MacBook displays. Columns now retain readable minimum widths, full weekday and action-button labels remain visible, horizontal trackpad scrolling is smooth, and the custom blue header stays aligned with the data while scrolling. Includes 38 passing tests."
+            --title "Personal Night-Shift Working Hours Record v1.1.10" \
+            --notes "Both Windows and macOS editions now use the same New Update workflow backed by GitHub Releases. Each app downloads only its own platform package, verifies its SHA-256 checksum, installs it, and reopens automatically. Includes the approved layout and salary-record refinements. All 41 tests pass."
