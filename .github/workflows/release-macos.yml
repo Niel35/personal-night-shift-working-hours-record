@@ -23,8 +23,33 @@ jobs:
           python-version: "3.11"
       - name: Extract frozen source kit
         run: |
-          mkdir build
-          unzip -q macos-kit-latest-20260805.zip -d build
+          python - <<'PY'
+          from pathlib import Path, PurePosixPath
+          import shutil
+          import zipfile
+
+          archive = Path("macos-kit-latest-20260805.zip")
+          output = Path("build").resolve()
+          output.mkdir(parents=True, exist_ok=True)
+
+          with zipfile.ZipFile(archive) as source:
+              for member in source.infolist():
+                  normalized = member.filename.replace("\\", "/")
+                  relative = PurePosixPath(normalized)
+                  if relative.is_absolute() or ".." in relative.parts:
+                      raise RuntimeError(f"Unsafe archive member: {member.filename}")
+                  target = output.joinpath(*relative.parts)
+                  if member.is_dir() or normalized.endswith("/"):
+                      target.mkdir(parents=True, exist_ok=True)
+                      continue
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with source.open(member) as src, target.open("wb") as dst:
+                      shutil.copyfileobj(src, dst)
+
+          build_script = output / "macos-kit-latest-20260805" / "build_macos_user.sh"
+          if not build_script.is_file():
+              raise RuntimeError(f"Build script was not extracted: {build_script}")
+          PY
       - name: Test and build native Apple Silicon app
         working-directory: build/macos-kit-latest-20260805
         run: |
