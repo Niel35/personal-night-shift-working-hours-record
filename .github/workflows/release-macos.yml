@@ -1,4 +1,4 @@
-name: Build and release Windows and macOS v1.1.13
+name: Build and release Windows and macOS v1.1.14
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - macos-kit-v1.1.13.zip
+      - macos-kit-v1.1.14.zip
       - .github/workflows/release-macos.yml
 
 permissions:
@@ -25,9 +25,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path build | Out-Null
-          Expand-Archive macos-kit-v1.1.13.zip -DestinationPath build
+          Expand-Archive macos-kit-v1.1.14.zip -DestinationPath build
       - name: Test and build Windows app
-        working-directory: build/macos-kit-v1.1.13
+        working-directory: build/macos-kit-v1.1.14
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
@@ -37,11 +37,11 @@ jobs:
           python -m pytest
           python -m PyInstaller night_shift_salary_recorder.spec --clean --noconfirm
           Compress-Archive -Path dist/PersonalNightShiftWorkingHoursRecord `
-            -DestinationPath PersonalNightShiftWorkingHoursRecord-Windows-1.1.13.zip
+            -DestinationPath PersonalNightShiftWorkingHoursRecord-Windows-1.1.14.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-release-v1.1.13
-          path: build/macos-kit-v1.1.13/PersonalNightShiftWorkingHoursRecord-Windows-1.1.13.zip
+          name: windows-release-v1.1.14
+          path: build/macos-kit-v1.1.14/PersonalNightShiftWorkingHoursRecord-Windows-1.1.14.zip
           if-no-files-found: error
 
   build-macos:
@@ -59,7 +59,7 @@ jobs:
           import shutil
           import zipfile
 
-          archive = Path("macos-kit-v1.1.13.zip")
+          archive = Path("macos-kit-v1.1.14.zip")
           output = Path("build").resolve()
           output.mkdir(parents=True, exist_ok=True)
 
@@ -77,22 +77,22 @@ jobs:
                   with source.open(member) as src, target.open("wb") as dst:
                       shutil.copyfileobj(src, dst)
 
-          build_script = output / "macos-kit-v1.1.13" / "build_macos_user.sh"
+          build_script = output / "macos-kit-v1.1.14" / "build_macos_user.sh"
           if not build_script.is_file():
               raise RuntimeError(f"Build script was not extracted: {build_script}")
           PY
       - name: Test and build native Apple Silicon app
-        working-directory: build/macos-kit-v1.1.13
+        working-directory: build/macos-kit-v1.1.14
         run: |
           chmod +x build_macos_user.sh
           ./build_macos_user.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-release-v1.1.13
+          name: macos-release-v1.1.14
           path: |
-            build/macos-kit-v1.1.13/release_packages/macos_user_install/v1.1.13/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.13.pkg
-            build/macos-kit-v1.1.13/release_packages/macos_user_install/v1.1.13/PersonalNightShiftWorkingHoursRecord-macOS-1.1.13.zip
-            build/macos-kit-v1.1.13/release_packages/macos_user_install/v1.1.13/PersonalNightShiftWorkingHoursRecord-macOS-1.1.13.dmg
+            build/macos-kit-v1.1.14/release_packages/macos_user_install/v1.1.14/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.14.pkg
+            build/macos-kit-v1.1.14/release_packages/macos_user_install/v1.1.14/PersonalNightShiftWorkingHoursRecord-macOS-1.1.14.zip
+            build/macos-kit-v1.1.14/release_packages/macos_user_install/v1.1.14/PersonalNightShiftWorkingHoursRecord-macOS-1.1.14.dmg
           if-no-files-found: error
 
   publish:
@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: "*-release-v1.1.13"
+          pattern: "*-release-v1.1.14"
           path: release-assets
           merge-multiple: true
       - name: Create secure platform update manifest
@@ -115,9 +115,9 @@ jobs:
           from pathlib import Path
 
           root = Path("release-assets")
-          windows = root / "PersonalNightShiftWorkingHoursRecord-Windows-1.1.13.zip"
-          macos = root / "PersonalNightShiftWorkingHoursRecord-macOS-1.1.13.zip"
-          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.13"
+          windows = root / "PersonalNightShiftWorkingHoursRecord-Windows-1.1.14.zip"
+          macos = root / "PersonalNightShiftWorkingHoursRecord-macOS-1.1.14.zip"
+          base = "https://github.com/Niel35/personal-night-shift-working-hours-record/releases/download/v1.1.14"
 
           def sha256(path):
               digest = hashlib.sha256()
@@ -127,7 +127,7 @@ jobs:
               return digest.hexdigest()
 
           manifest = {
-              "latest_version": "1.1.13",
+              "latest_version": "1.1.14",
               "download_url": f"{base}/{windows.name}",
               "sha256": sha256(windows),
               "published_at": date.today().isoformat(),
@@ -145,10 +145,9 @@ jobs:
                   },
               },
               "release_notes": (
-                  "Adds a macOS-only PaySlip link below New Update. It opens the "
-                  "ROBOROBO payroll login in the default browser, appears as a clean "
-                  "text link, and turns red on hover. Windows layout and salary "
-                  "calculations are unchanged."
+                  "Corrects overtime calculations on Windows and macOS so hours "
+                  "already paid as daily overtime do not trigger weekly overtime "
+                  "again, including weeks that cross between two months."
               ),
           }
           (root / "update.json").write_text(
@@ -156,15 +155,15 @@ jobs:
               encoding="utf-8",
           )
           PY
-      - name: Publish GitHub release v1.1.13
+      - name: Publish GitHub release v1.1.14
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.1.13 --repo Niel35/personal-night-shift-working-hours-record \
-            release-assets/PersonalNightShiftWorkingHoursRecord-Windows-1.1.13.zip \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.13.pkg \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.13.zip \
-            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.13.dmg \
+          gh release create v1.1.14 --repo Niel35/personal-night-shift-working-hours-record \
+            release-assets/PersonalNightShiftWorkingHoursRecord-Windows-1.1.14.zip \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-Installer-1.1.14.pkg \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.14.zip \
+            release-assets/PersonalNightShiftWorkingHoursRecord-macOS-1.1.14.dmg \
             release-assets/update.json \
-            --title "Personal Night-Shift Working Hours Record v1.1.13" \
-            --notes "Adds a macOS-only PaySlip link below New Update. It opens the ROBOROBO payroll login in the default browser, appears as a clean text link, and turns red on hover. The stable update.json endpoint and manifest schema are unchanged, platform downloads remain checksum-verified, and all 73 tests pass."
+            --title "Personal Night-Shift Working Hours Record v1.1.14" \
+            --notes "Corrects overtime calculations on Windows and macOS so hours already paid as daily overtime do not trigger weekly overtime again, including weeks that cross between two months. The stable update.json endpoint and schema are unchanged, and platform downloads remain checksum-verified."
